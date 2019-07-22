@@ -2,4 +2,5 @@ source/*
 workspace/*
 temp/*
 release-candidate/*
-jxos.iso
+jxos-install.img
+
