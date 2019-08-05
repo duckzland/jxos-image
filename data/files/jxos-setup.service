@@ -1,0 +1,9 @@
+[Unit]
+Description=JXOS final setup
+
+[Service]
+Type=idle
+ExecStart=/home/jxminer/setup/jxos-setup.sh
+
+[Install]
+WantedBy=multi-user.target

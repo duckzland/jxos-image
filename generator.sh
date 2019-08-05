@@ -118,6 +118,7 @@ DEBIAN_FRONTEND=noninteractive /usr/bin/dpkg -i --force-confdef $PACKAGE_PATH/de
 # This should be done manually by user after the system boots
 cEcho "[-] Configuring XServer"
 cp -f $PACKAGE_PATH/files/edid.bin /etc/X11
+cp -f $PACKAGE_PATH/files/10-monitor.conf /usr/share/X11/xorg.conf.d/
 #/usr/bin/nvidia-xconfig -a --allow-empty-initial-configuration --use-display-device="DFP-0:/etc/X11/edid.bin" --connected-monitor="DFP-0" --cool-bits=31
 
 # AMDGPU setup
@@ -229,7 +230,7 @@ DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y purge \
    apparmor ufw apport plymouth* update-manager-core accountsservice \
    ftp modemmanager ppp popularity-contest unattended-upgrades \
    vlc* lvm2 lxd ubuntu-release-upgrader-core tmux vim screen lxd-client squashfs-tools pinentry-curses \
-   fakeroot desktop-file-utils cloud* htop language-pack* laptop-detect libbluetooth*
+   fakeroot desktop-file-utils cloud* htop language-pack* laptop-detect libbluetooth* libplymouth4
 
 
 # Clean apt cache

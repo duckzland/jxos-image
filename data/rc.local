@@ -1,0 +1,5 @@
+#!/bin/bash
+
+/home/jxminer/setup/scripts/10-dhcp-client.sh
+
+exit 0
