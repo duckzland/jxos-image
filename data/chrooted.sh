@@ -6,7 +6,7 @@
 #
 
 # CONSTANTS
-PACKAGE_PATH="/opt"
+PACKAGE_PATH="/root"
 
 # HELPER FUNCTION
 function cEcho(){
@@ -33,6 +33,17 @@ function cEcho(){
 
 ### PREPARATION STEP
 
+cEcho "[-] Preparing chrooted environment"
+mount none -t proc /proc
+mount none -t sysfs /sys
+mount none -t devpts /dev/pts
+
+export HOME=/root
+export LC_ALL=C
+
+# Set global locale
+echo "LL_ALL=\"C.UTF-8\"" >> /etc/default/locale
+
 # Set Swappiness
 echo "vm.swappiness=10" >> /etc/sysctl.conf
 
@@ -42,9 +53,26 @@ echo "vm.nr_hugepages=128" >> /etc/sysctl.conf
 # Kernel panic
 echo "kernel.panic=20" >> /etc/sysctl.conf
 
+
+cEcho "[-] Preparing for installation"
+dbus-uuidgen > /var/lib/dbus/machine-id
+dpkg-divert --local --rename --add /sbin/initctl
+ln -s /bin/true /sbin/initctl
+
+#cEcho "[-] Adding china mirror"
+#echo "deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ bionic main" >> /etc/apt/sources.list
+#echo "deb-src http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ bionic main" >> /etc/apt/sources.list
+#DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y update
+
 # Install base file, this can be performed via seed file!
 cEcho "[-] Installing base files"
-DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y install build-essential software-properties-common dkms
+DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y install openssh-server build-essential software-properties-common dkms
+
+# Enable extra repositories
+cEcho "[-] Adding universe, multivers and restricted repositories"
+/usr/bin/apt-add-repository -n universe
+/usr/bin/apt-add-repository -n multiverse
+/usr/bin/apt-add-repository -n restricted
 
 # Apt Fast repository
 cEcho "[-] Adding apt fast repository"
@@ -71,7 +99,8 @@ DEBIAN_FRONTEND=noninteractive /usr/bin/apt install -q 2 -y apt-fast -o Dpkg::Op
 # Install all the required program that can be installed via ubuntu repository
 cEcho "[-] Installing softwares"
 DEBIAN_FRONTEND=noninteractive /usr/bin/apt install -q 2 -y \
-	plymouth-x11 network-manager \
+	ubuntu-standard casper lupin-casper discover laptop-detect os-prober linux-generic \
+	grub2 plymouth-x11 network-manager \
 	nvidia-driver-418 nvidia-cuda-toolkit nvidia-settings lightdm- cuda-cudart-9-2 \
 	python python-pip  python-nfqueue  python-urwid  python-setuptools  \
 	python-ptyprocess  python-lzma  python-minimal  python-magic  python-soappy \
@@ -81,10 +110,6 @@ DEBIAN_FRONTEND=noninteractive /usr/bin/apt install -q 2 -y \
 	kio xdg-utils kde-cli-tools trash-cli libglib2.0-bin gvfs-bin gconf-service-backend \
 	gconf2-common libgconf-2-4 libdbus-glib-1-2 gconf-service libgconf2-4 libnotify4 xterm net-tools \
 	-o Dpkg::Options::="--force-confdef"
-
-# Early upgrade
-cEcho "[-] Upgrading packages"
-DEBIAN_FRONTEND=noninteractive /usr/bin/apt upgrade -q 2 -y -o Dpkg::Options::="--force-confdef"
 
 
 # Installing amd headless driver
@@ -186,6 +211,11 @@ cEcho "[-] Fixing jxminer home folders"
 chown -R jxminer:jxminer /home/jxminer
 usermod -m -d /home/jxminer jxminer
 
+cEcho "[-] Disabling motd at pam.d"
+sed -i 's|session    optional     pam_motd.so  motd=/run/motd.dynamic|# session    optional     pam_motd.so  motd=/run/motd.dynamic|g' /etc/pam.d/sshd
+sed -i 's|session    optional     pam_motd.so noupdate|# session    optional     pam_motd.so noupdate|g' /etc/pam.d/sshd
+
+
 systemctl daemon-reload
 
 cEcho "[-] Setting up systemctl"
@@ -209,9 +239,10 @@ systemctl disable apport-autoreport
 systemctl disable nvidia-persistenced
 systemctl disable lxd-containers
 systemctl disable lvm2-lvmetad
+systemctl disable motd-news
 
 rm -f /etc/systemd/system/apparmor.service
-rm -f /etc/systemd/system/apport*
+rm -f /etc/systemd/system/apport-forward.socket
 rm -f /etc/systemd/system/ufw.service
 rm -f /etc/systemd/system/timers.target.wants/apt-daily-upgrade.timer
 rm -f /etc/systemd/system/timers.target.wants/apt-daily.timer
@@ -221,18 +252,23 @@ rm -f /etc/systemd/system/lxd*
 rm -f /etc/systemd/system/pppd-dns.service
 rm -f /etc/systemd/system/snapd*
 rm -f /etc/systemd/system/unattended-upgrades.service
-rm -f /etc/systemd/system/blk-availability.service
-rm -f /etc/systemd/system/accounts-daemon.service
-rm -f /etc/systemd/system/ModemManager.service
+rm -f /etc/systemd/system/timers.target.wants/motd-news.timer
+rm -f /lib/systemd/system/apt-daily*
+rm -f /lib/systemd/system/avahi*
+rm -f /lib/systemd/system/bluetooth*
+rm -f /lib/systemd/system/motd*
 
 cEcho "[-] Removing packages"
-#DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y remove apparmor ufw apport plymouth-*
 DEBIAN_FRONTEND=noninteractive /usr/bin/apt -q 2 -y purge \
    apparmor ufw apport plymouth* update-manager-core accountsservice \
    ftp modemmanager ppp popularity-contest unattended-upgrades \
    vlc* lvm2 lxd ubuntu-release-upgrader-core tmux vim screen lxd-client squashfs-tools pinentry-curses \
-   fakeroot desktop-file-utils cloud* htop language-pack* laptop-detect libbluetooth* libplymouth4
+   fakeroot desktop-file-utils
 
+
+
+cEcho "[-] Generating manifest"
+dpkg-query -W --showformat='${Package} ${Version}\n' > $PACKAGE_PATH/filesystem.manifest
 
 # Clean apt cache
 cEcho "[-] Cleaning chrooted environment"
@@ -246,6 +282,19 @@ rm -rf $PACKAGE_PATH/deb
 rm -rf $PACKAGE_PATH/keys
 rm -rf $PACKAGE_PATH/files
 rm -rf /tmp/* ~/.bash_history
+
+# Remove uuid
+rm /var/lib/dbus/machine-id
+rm /sbin/initctl
+
+dpkg-divert --rename --remove /sbin/initctl
+
+
+# Unmount and exit
+umount -lf /proc
+umount -lf /sys
+umount -lf /dev/pts
+
 
 cEcho "[-] Finished processing chrooted, exiting to main shell"
 exit

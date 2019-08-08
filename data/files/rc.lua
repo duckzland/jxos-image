@@ -6,6 +6,7 @@ require("awful.autofocus")
 -- Widget and layout library
 local wibox = require("wibox")
 
+
 -- Table of layouts to cover with awful.layout.inc, order matters.
 local layouts =
 {
@@ -30,7 +31,7 @@ for s = 1, screen.count() do
       gap = 2,
       screen = s,
       layout = layouts[1]
-    }) 
+    })
 end
 
 -- }}}
@@ -41,12 +42,18 @@ end
 mywibox = {}
 mytaglist = {}
 mytaglist.buttons = awful.util.table.join(
-	awful.button({ }, 1, awful.tag.viewonly),
-	awful.button({ }, 3, awful.tag.viewtoggle)
+        awful.button({ }, 1, awful.tag.viewonly),
+        awful.button({ }, 3, awful.tag.viewtoggle)
 )
 
 for s = 1, screen.count() do
-    mytaglist[s] = awful.widget.taglist(s, awful.widget.taglist.filter.all, mytaglist.buttons)
+    btn = awful.util.table.join(
+        awful.button({ }, 1, awful.tag.viewonly ),
+        awful.button({ }, 3, awful.tag.viewtoggle),
+        awful.button({ }, 1, function(t) spawn_program(t.index) end)
+    )
+
+    mytaglist[s] = awful.widget.taglist(s, awful.widget.taglist.filter.all, btn)
     mywibox[s] = awful.wibox({ position = "bottom", screen = s, height = 32, bg = "#162229", spacing = 10 })
     mywibox[s]:set_widget(mytaglist[s])
 end
@@ -60,6 +67,40 @@ awful.rules.rules = {
 }
 
 
+-- Function callback for spawning a single registered program by screen id and tags
+function spawn_program(s)
+    if s == 1 then
+       tg = "JXMiner"
+       cmd = "jxdashboard"
+    end
+
+    if s == 2 then
+       tg = "Terminal"
+       cmd = "xterm"
+    end
+
+    if tg then
+       x, t = get_screen_and_tag(tg)
+       run_if_not_running(cmd, {
+          tag = t,
+          screen = x,
+       });
+    end
+end
+
+-- Function for checking if current program is running or not
+function run_if_not_running(program, arguments)
+   awful.spawn.easy_async(
+      "pgrep " .. program,
+      function(stdout, stderr, reason, exit_code)
+         if exit_code ~= 0 then
+            awful.spawn(program, arguments)
+         end
+   end)
+end
+
+
+-- Extract the screen id and tag id based on tag name
 function get_screen_and_tag(name)
   for s in screen do
     for i,tag in ipairs(s.tags) do
@@ -70,14 +111,6 @@ function get_screen_and_tag(name)
   end
 end
 
-s, t = get_screen_and_tag("JXMiner")
-awful.spawn("jxdashboard", {
-	tag = t,
-	screen = s,
-})
 
-s, t = get_screen_and_tag("Terminal")
-awful.spawn("xterm", {
-	tag = t,
-	screen = s
-})
+-- Initial booting, spawn dashboard
+spawn_program(1)
